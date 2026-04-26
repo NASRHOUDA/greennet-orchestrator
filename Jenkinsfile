@@ -12,8 +12,15 @@ spec:
     image: python:3.11-slim
     command: ["sleep", "infinity"]
   - name: docker
-    image: docker:24
+    image: docker:24-dind
     command: ["sleep", "infinity"]
+    securityContext:
+      privileged: true
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+    - name: DOCKER_HOST
+      value: "unix:///var/run/docker.sock"
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
@@ -27,13 +34,11 @@ spec:
 '''
         }
     }
-
     environment {
         DOCKER_CRED = credentials('docker-hub-credentials')
         DOCKER_IMAGE = 'houdanasr/energy-scaler'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
     }
-
     stages {
         stage('Checkout') {
             steps {
@@ -41,7 +46,6 @@ spec:
                 echo '✅ Code récupéré'
             }
         }
-
         stage('Test ML Model') {
             steps {
                 container('python') {
@@ -53,11 +57,12 @@ spec:
                 }
             }
         }
-
         stage('Build & Push Docker Image') {
             steps {
                 container('docker') {
                     sh '''
+                    sleep 5
+                    docker info
                     echo $DOCKER_CRED_PSW | docker login -u $DOCKER_CRED_USR --password-stdin
                     docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
                     docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
@@ -68,7 +73,6 @@ spec:
                 }
             }
         }
-
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
@@ -84,7 +88,6 @@ spec:
             }
         }
     }
-
     post {
         success { echo '🎉 Pipeline réussi !' }
         failure { echo '❌ Pipeline échoué' }
