@@ -46,7 +46,7 @@ spec:
             steps {
                 container('python') {
                     sh '''
-                    pip install numpy scikit-learn joblib -q
+                    pip install -r ml-model/requirements.txt -q
                     python ml-model/train_model.py
                     echo "✅ Tests ML OK"
                     '''
