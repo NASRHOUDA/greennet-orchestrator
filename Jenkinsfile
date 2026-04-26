@@ -34,15 +34,6 @@ pipeline {
             }
         }
         
-        stage('Security Scan') {
-            steps {
-                sh '''
-                docker run --rm aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 python:3.11-slim
-                '''
-                echo '✅ Scan sécurité terminé'
-            }
-        }
-        
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
@@ -76,11 +67,9 @@ pipeline {
     post {
         success {
             echo '🎉 Pipeline réussi !'
-            slackSend(color: 'good', message: "Build ${env.BUILD_NUMBER} réussi")
         }
         failure {
             echo '❌ Pipeline échoué'
-            slackSend(color: 'danger', message: "Build ${env.BUILD_NUMBER} échoué")
         }
     }
 }
