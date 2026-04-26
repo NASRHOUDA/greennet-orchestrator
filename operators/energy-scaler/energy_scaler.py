@@ -20,8 +20,8 @@ class EnergyScalerK8s:
             print("✅ Config Kubernetes (local)", flush=True)
 
         self.apps_v1 = client.AppsV1Api()
-        self.threshold_high = 25
-        self.threshold_low = 21
+        self.threshold_high = 22
+        self.threshold_low = 14
         self.min_replicas = 1
         self.max_replicas = 5
         self.last_scale_time = 0
@@ -59,7 +59,7 @@ class EnergyScalerK8s:
         now = datetime.now()
         hour = now.hour
         day_of_week = now.weekday()
-        avg_bandwidth = 50.0  # estimation fixe en Mbps
+        avg_bandwidth = 5.0  # estimation fixe en Mbps
 
         features = np.array([[hour, day_of_week, connections, avg_bandwidth]])
         cpu_ratio = self.model.predict(features)[0]
