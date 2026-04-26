@@ -6,21 +6,25 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-  - name: docker
-    image: docker:24-dind
-    securityContext:
-      privileged: true
-    env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    command: ["sleep", "infinity"]
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
   - name: python
     image: python:3.11-slim
     command: ["sleep", "infinity"]
+  - name: docker
+    image: docker:24
+    command: ["sleep", "infinity"]
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["sleep", "infinity"]
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
 '''
-            defaultContainer 'docker'
         }
     }
 
@@ -44,9 +48,9 @@ spec:
                     sh '''
                     pip install numpy scikit-learn joblib -q
                     python ml-model/train_model.py
+                    echo "✅ Tests ML OK"
                     '''
                 }
-                echo '✅ Tests ML OK'
             }
         }
 
@@ -59,21 +63,24 @@ spec:
                     docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
                     docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                     docker push ${DOCKER_IMAGE}:latest
+                    echo "✅ Image poussée sur Docker Hub"
                     '''
                 }
-                echo '✅ Image construite et poussée'
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
-                    sh '''
-                    kubectl set image deployment/energy-scaler scaler=${DOCKER_IMAGE}:${DOCKER_TAG} -n default
-                    kubectl rollout status deployment/energy-scaler -n default
-                    '''
+                    withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                        sh '''
+                        kubectl set image deployment/energy-scaler \
+                          scaler=${DOCKER_IMAGE}:${DOCKER_TAG} -n default
+                        kubectl rollout status deployment/energy-scaler -n default
+                        echo "✅ Déployé dans Kubernetes"
+                        '''
+                    }
                 }
-                echo '✅ Déployé'
             }
         }
     }
