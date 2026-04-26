@@ -11,26 +11,15 @@ spec:
   - name: python
     image: python:3.11-slim
     command: ["sleep", "infinity"]
-  - name: docker
-    image: docker:24-dind
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
     command: ["sleep", "infinity"]
-    securityContext:
-      privileged: true
     env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
-    - name: DOCKER_HOST
-      value: "unix:///var/run/docker.sock"
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
+    - name: container
+      value: docker
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ["sleep", "infinity"]
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
 '''
         }
     }
@@ -59,15 +48,15 @@ spec:
         }
         stage('Build & Push Docker Image') {
             steps {
-                container('docker') {
+                container('kaniko') {
                     sh '''
-                    sleep 5
-                    docker info
-                    echo $DOCKER_CRED_PSW | docker login -u $DOCKER_CRED_USR --password-stdin
-                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                    docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-                    docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                    docker push ${DOCKER_IMAGE}:latest
+                    mkdir -p /kaniko/.docker
+                    echo "{\\"auths\\":{\\"https://index.docker.io/v1/\\":{\\"auth\\":\\"$(echo -n $DOCKER_CRED_USR:$DOCKER_CRED_PSW | base64)\\"}}}" > /kaniko/.docker/config.json
+                    /kaniko/executor \
+                      --context=$(pwd) \
+                      --dockerfile=$(pwd)/Dockerfile \
+                      --destination=${DOCKER_IMAGE}:${DOCKER_TAG} \
+                      --destination=${DOCKER_IMAGE}:latest
                     echo "✅ Image poussée sur Docker Hub"
                     '''
                 }
