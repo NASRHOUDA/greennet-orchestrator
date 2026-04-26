@@ -2,7 +2,8 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_IMAGE = 'energy-scaler'
+        DOCKER_CRED = credentials('docker-hub-credentials')
+        DOCKER_IMAGE = 'houdanasr/energy-scaler'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
     }
     
@@ -11,6 +12,13 @@ pipeline {
             steps {
                 checkout scm
                 echo '✅ Code récupéré'
+            }
+        }
+        
+        stage('Login to Docker Hub') {
+            steps {
+                sh 'echo $DOCKER_CRED_PSW | docker login -u $DOCKER_CRED_USR --password-stdin'
+                echo '✅ Connecté à Docker Hub'
             }
         }
         
@@ -43,7 +51,17 @@ pipeline {
             }
         }
         
-        stage('Deploy to Kind') {
+        stage('Push to Docker Hub') {
+            steps {
+                sh '''
+                docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                docker push ${DOCKER_IMAGE}:latest
+                '''
+                echo '✅ Image poussée sur Docker Hub'
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
             steps {
                 sh '''
                 kind load docker-image ${DOCKER_IMAGE}:${DOCKER_TAG} --name greennet
@@ -58,9 +76,11 @@ pipeline {
     post {
         success {
             echo '🎉 Pipeline réussi !'
+            slackSend(color: 'good', message: "Build ${env.BUILD_NUMBER} réussi")
         }
         failure {
             echo '❌ Pipeline échoué'
+            slackSend(color: 'danger', message: "Build ${env.BUILD_NUMBER} échoué")
         }
     }
 }
